@@ -1,0 +1,15 @@
+[package]
+name = "wav2c"
+authors = ["John Whittington <john@jbrengineering.co.uk>"]
+description = "Convert WAV files to C arrays for embedded LPCM audio playback"
+license = "Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+keywords = ["audio", "wav", "embedded", "lpcm", "c", "array"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+clap = { version = "4.3", features = ["derive"] }
+env_logger = "0.11.6"
+hound = "3.5.1"
+log = "0.4.22"
