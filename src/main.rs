@@ -26,9 +26,9 @@ enum WavToCError {
 #[derive(Debug, Default, Clone, ValueEnum)]
 enum ArrayFormat {
     #[default]
-    /// Signed 16-bit integers in base 10
+    /// Signed integers in base 10
     Base10,
-    /// Signed 16-bit integers in hexadecimal
+    /// Signed integers in hexadecimal
     Base16,
 }
 
@@ -69,6 +69,10 @@ impl From<hound::Error> for WavToCError {
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Path to the input .wav file
+    ///
+    /// Use ffmpeg or other to convert other formats to .wav. For example:
+    /// `ffmpeg -i input.m4a -ar 22050 -ac 1 -sample_fmt s16 output.wav`; mono
+    /// 16-bit 22.05kHz audio.
     input: PathBuf,
 
     /// Name of the array (optional, defaults to the input file name without extension)
@@ -85,7 +89,9 @@ struct Args {
 
     /// Max samples to sanity check the array size
     ///
-    /// 220,000 samples of 16 bit 44.1kHz audio is about 5 seconds/440 kB. For embedded systems, you may want to adjust sample rate of input file to fit memory constraints before increasing this value.
+    /// 220,000 samples of 16 bit 44.1kHz audio is about 5 seconds/440 kB. For
+    /// embedded systems, you may want to adjust sample rate of input file to
+    /// fit memory constraints before increasing this value.
     #[arg(short, long, default_value_t = MAX_SAMPLES)]
     max_samples: usize,
 
@@ -158,6 +164,7 @@ fn wav_to_c_array(
         ));
     }
 
+    // TODO: generic types for > 16-bit samples
     let samples: Vec<i16> = match spec.channels {
         1 => reader.samples::<i16>().collect::<Result<Vec<_>, _>>()?,
         2 => {
@@ -215,17 +222,29 @@ fn wav_to_c_array(
         c_code.push_str("\n\n");
     }
 
+    let c_type = match spec.bits_per_sample {
+        0..=8 => "int8_t",
+        9..=16 => "int16_t",
+        17..=32 => "int32_t",
+        _ => "int64_t",
+    };
+
     c_code.push_str(&format!(
         "#define {}_SAMPLE_NO {}\n\n\
-        const int16_t {}[] = {{",
+        const {} {}[] = {{",
         safe_array_name.to_uppercase(),
         samples.len(),
+        c_type,
         safe_array_name
     ));
 
-    for (i, sample) in samples.iter().enumerate() {
+    for (i, ref mut sample) in samples.into_iter().enumerate() {
         if i % SAMPLES_PER_LINE == 0 {
             c_code.push_str("\n\t");
+        }
+        // convert 8-bit samples to signed; usually encoded unsigned for some reason
+        if spec.bits_per_sample <= 8 {
+            *sample -= 128;
         }
         match options.format {
             ArrayFormat::Base10 => c_code.push_str(&format!(" {},", sample)),
