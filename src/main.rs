@@ -158,25 +158,36 @@ fn wav_to_c_array(
     info!("Processing file: {}", wave_file);
     info!("{}", file_spec);
 
-    if spec.sample_format != hound::SampleFormat::Int || spec.bits_per_sample > 16 {
+    if spec.sample_format != hound::SampleFormat::Int {
         return Err(WavToCError::InvalidInput(
-            "Only <= 16-bit PCM audio is currently supported.".to_string(),
+            "Only int PCM audio is currently supported.".to_string(),
         ));
     }
 
-    // TODO: generic types for > 16-bit samples
-    let samples: Vec<i16> = match spec.channels {
-        1 => reader.samples::<i16>().collect::<Result<Vec<_>, _>>()?,
+    let c_type = match spec.bits_per_sample {
+        0..=8 => "int8_t",
+        9..=16 => "int16_t",
+        17..=32 => "int32_t",
+        _ => {
+            return Err(WavToCError::InvalidInput(
+                "Unsupported bits per sample.".to_string(),
+            ))
+        }
+    };
+
+    // TODO: generic types so not all hound::Samples cast to i32
+    let samples = match spec.channels {
+        1 => reader.samples::<i32>().collect::<Result<Vec<_>, _>>()?,
         2 => {
             warn!("Merging stereo channels into mono.");
             reader
-                .samples::<i16>()
+                .samples::<i32>()
                 .collect::<Result<Vec<_>, _>>()?
                 .chunks(2)
                 .map(|pair| {
-                    let left = pair[0] as i32;
-                    let right = pair[1] as i32;
-                    ((left + right) / 2) as i16
+                    let left = pair[0] as i64;
+                    let right = pair[1] as i64;
+                    ((left + right) / 2) as i32
                 })
                 .collect()
         }
@@ -211,7 +222,7 @@ fn wav_to_c_array(
             env!("CARGO_PKG_VERSION"),
             wave_file,
             file_spec,
-            env!("CARGO_PKG_HOMEPAGE")
+            env!("CARGO_PKG_REPOSITORY")
         )
     } else {
         String::new()
@@ -221,13 +232,6 @@ fn wav_to_c_array(
         c_code.push_str(prefix);
         c_code.push_str("\n\n");
     }
-
-    let c_type = match spec.bits_per_sample {
-        0..=8 => "int8_t",
-        9..=16 => "int16_t",
-        17..=32 => "int32_t",
-        _ => "int64_t",
-    };
 
     c_code.push_str(&format!(
         "#define {}_SAMPLE_NO {}\n\n\
@@ -241,10 +245,6 @@ fn wav_to_c_array(
     for (i, ref mut sample) in samples.into_iter().enumerate() {
         if i % SAMPLES_PER_LINE == 0 {
             c_code.push_str("\n\t");
-        }
-        // convert 8-bit samples to signed; usually encoded unsigned for some reason
-        if spec.bits_per_sample <= 8 {
-            *sample -= 128;
         }
         match options.format {
             ArrayFormat::Base10 => c_code.push_str(&format!(" {},", sample)),
