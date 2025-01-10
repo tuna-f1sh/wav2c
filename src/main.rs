@@ -208,8 +208,8 @@ fn wav_to_c_array(
         }
     }
 
-    // strip spaces from the array name
-    let safe_array_name = array_name.replace(" ", "_");
+    // strip spaces and numeric from the array name
+    let safe_array_name = array_name.trim().replace(" ", "_").replace(|c: char| !c.is_ascii_alphabetic() && c != '_', "");
     let mut c_code = if !options.no_comment {
         format!(
             "/*\n\
@@ -278,7 +278,7 @@ fn main() -> Result<(), WavToCError> {
     // use the input file name as the array name if not provided
     // converted to lowercase ascii
     let array_name = args.array_name.unwrap_or_else(|| {
-        args.input
+        args.output.as_ref().unwrap_or(&args.input)
             .file_stem()
             .unwrap()
             .to_string_lossy()
