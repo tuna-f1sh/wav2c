@@ -10,16 +10,21 @@ See the help message for usage information:
 cargo run --release -- --help
 ```
 
-The source file generated is designed to be included in target sources then definitions declared as externs in the target code.
+The source file generated is designed to be included in target sources then declarations declared as externs in the target code.
 
 For example, an audio file `audio.wav` (16-bit) with `wav2c -o audio.c audio.wav` will generate `audio.c` with the following definitions (use `--array-name` to change the array name). These can be included in the target source as `extern`:
+
+```c
+const size_t AUDIO_SAMPLE_NO = N;
+const int16_t audio[N] = { 0, ..N };
+```
 
 ```c
 extern const size_t AUDIO_SAMPLE_NO;
 extern const int16_t audio[];
 ```
 
-Perhaps it might be useful to create a header file in the future but for now, the definitions are included in the source file.
+Alternatively, a header file containing the declarations can be generated with `--header`.
 
 # Input File and Array Size
 

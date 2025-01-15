@@ -100,12 +100,16 @@ struct Args {
     no_comment: bool,
 
     /// File to read and write to the output file before the array
-    #[arg(short = 'H', long, conflicts_with = "prefix")]
+    #[arg(short = 'P', long, conflicts_with = "prefix")]
     prefix_file: Option<PathBuf>,
 
     /// String to prepend to the output file before the array
     #[arg(short, long, conflicts_with = "prefix_file")]
     prefix: Option<String>,
+
+    /// Include header file in output with extern declarations
+    #[arg(short = 'H', long, requires = "output")]
+    header: bool,
 
     /// Enable verbose output (can be repeated for more verbosity)
     #[arg(short, long, action = clap::ArgAction::Count)]
@@ -133,6 +137,22 @@ struct WavToCOptions<'a> {
     no_comment: bool,
     format: ArrayFormat,
     prefix: Option<&'a str>,
+    header: bool,
+}
+
+fn write_header(output_path: &Path, array_name: &str, array_type: &str) -> Result<(), WavToCError> {
+    let header = format!(
+        "#ifndef _{}_H_\n#define _{}_H_\n\nextern const size_t {}_SAMPLE_NO;\n\
+        extern const {} {}[];\n\n#endif",
+        array_name.to_uppercase(),
+        array_name.to_uppercase(),
+        array_name.to_uppercase(),
+        array_type,
+        array_name,
+    );
+
+    std::fs::write(output_path, header)?;
+    Ok(())
 }
 
 fn wav_to_c_array(
@@ -261,6 +281,11 @@ fn wav_to_c_array(
     if let Some(output_path) = output_path {
         std::fs::write(output_path, c_code)?;
         info!("Output written to: {}", output_path.display());
+        if options.header {
+            let header_path = output_path.with_extension("h");
+            write_header(&header_path, array_name, c_type)?;
+            info!("Header written to: {}", header_path.display());
+        }
     } else {
         println!("{}", c_code);
     }
@@ -303,6 +328,7 @@ fn main() -> Result<(), WavToCError> {
         no_comment: args.no_comment,
         format: args.format,
         prefix: prefix.as_deref(),
+        header: args.header,
     };
 
     wav_to_c_array(&args.input, &array_name, args.output.as_deref(), options)?;
