@@ -266,13 +266,19 @@ fn wav_to_c_array(
         samples.len()
     ));
 
-    for (i, ref mut sample) in samples.into_iter().enumerate() {
+    for (i, sample) in samples.into_iter().enumerate() {
         if i % SAMPLES_PER_LINE == 0 {
             c_code.push_str("\n\t");
         }
         match options.format {
             ArrayFormat::Base10 => c_code.push_str(&format!(" {},", sample)),
-            ArrayFormat::Base16 => c_code.push_str(&format!(" {:#x},", sample)),
+            ArrayFormat::Base16 => match c_type {
+                // cast to signed type for correct hex representation - - i32 would be 0xffffff..
+                "int8_t" => c_code.push_str(&format!(" 0x{:02x},", sample as i8)),
+                "int16_t" => c_code.push_str(&format!(" 0x{:04x},", sample as i16)),
+                "int32_t" => c_code.push_str(&format!(" 0x{:08x},", sample as i32)),
+                _ => unreachable!(),
+            },
         }
     }
 
