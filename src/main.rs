@@ -84,7 +84,7 @@ struct Args {
     output: Option<PathBuf>,
 
     /// Number format for the output array
-    #[arg(short, long, value_enum, default_value_t = ArrayFormat::Base10)]
+    #[arg(short = 'F', long, value_enum, default_value_t = ArrayFormat::Base10)]
     format: ArrayFormat,
 
     /// Max samples to sanity check the array size
@@ -110,6 +110,10 @@ struct Args {
     /// Include header file in output with extern declarations
     #[arg(short = 'H', long, requires = "output")]
     header: bool,
+
+    /// Overwrite if the output file exists
+    #[arg(short, long)]
+    force: bool,
 
     /// Enable verbose output (can be repeated for more verbosity)
     #[arg(short, long, action = clap::ArgAction::Count)]
@@ -314,7 +318,7 @@ fn main() -> Result<(), WavToCError> {
     setup_logging(args.verbose);
 
     if let Some(output_path) = &args.output {
-        if output_path.exists() {
+        if output_path.exists() && !args.force {
             return Err(WavToCError::OutputExists(output_path.to_path_buf()));
         }
     }
