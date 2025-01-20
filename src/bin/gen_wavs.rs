@@ -33,7 +33,7 @@ fn generate_wav<P: AsRef<Path>>(
             match bits_per_sample {
                 0..=8 => writer.write_sample(value as i8).unwrap(),
                 9..=16 => writer.write_sample(value as i16).unwrap(),
-                17..=32 => writer.write_sample(value as i32).unwrap(),
+                17..=32 => writer.write_sample(value).unwrap(),
                 _ => unreachable!(),
             }
         }
