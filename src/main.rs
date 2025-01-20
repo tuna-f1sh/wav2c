@@ -276,7 +276,7 @@ fn wav_to_c_array(
                 // cast to signed type for correct hex representation - - i32 would be 0xffffff..
                 "int8_t" => c_code.push_str(&format!(" 0x{:02x},", sample as i8)),
                 "int16_t" => c_code.push_str(&format!(" 0x{:04x},", sample as i16)),
-                "int32_t" => c_code.push_str(&format!(" 0x{:08x},", sample as i32)),
+                "int32_t" => c_code.push_str(&format!(" 0x{:08x},", { sample })),
                 _ => unreachable!(),
             },
         }

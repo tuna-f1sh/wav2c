@@ -35,9 +35,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y gcc
-
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 

@@ -10,24 +10,24 @@ fn wav_to_c_case(input_path: &Path, golden_path: &Path, output_path: Option<&Pat
     let generated_output = if let Some(output_path) = output_path {
         Command::cargo_bin(env!("CARGO_PKG_NAME"))
             .unwrap()
-            .arg(&input_path)
+            .arg(input_path)
             .arg("--output")
-            .arg(&output_path)
+            .arg(output_path)
             .args(args)
             .assert()
             .success();
-        fs::read_to_string(&output_path).unwrap()
+        fs::read_to_string(output_path).unwrap()
     } else {
         let cmd = Command::cargo_bin(env!("CARGO_PKG_NAME"))
             .unwrap()
-            .arg(&input_path)
+            .arg(input_path)
             .args(args)
             .assert()
             .success();
         String::from_utf8(cmd.get_output().stdout.clone()).unwrap()
     };
 
-    let golden_output = fs::read_to_string(&golden_path).unwrap();
+    let golden_output = fs::read_to_string(golden_path).unwrap();
 
     pretty_assertions::assert_eq!(
         generated_output.trim(),
