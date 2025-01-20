@@ -140,12 +140,18 @@ struct WavToCOptions<'a> {
     header: bool,
 }
 
-fn write_header(output_path: &Path, array_name: &str, array_type: &str) -> Result<(), WavToCError> {
+fn write_header(
+    output_path: &Path,
+    array_name: &str,
+    array_type: &str,
+    size_type: &str,
+) -> Result<(), WavToCError> {
     let header = format!(
-        "#ifndef _{}_H_\n#define _{}_H_\n\nextern const size_t {}_SAMPLE_NO;\n\
+        "#ifndef _{}_H_\n#define _{}_H_\n\nextern const {} {}_SAMPLE_NO;\n\
         extern const {} {}[];\n\n#endif",
         array_name.to_uppercase(),
         array_name.to_uppercase(),
+        size_type,
         array_name.to_uppercase(),
         array_type,
         array_name,
@@ -185,9 +191,9 @@ fn wav_to_c_array(
     }
 
     let c_type = match spec.bits_per_sample {
-        0..=8 => "int8_t",
-        9..=16 => "int16_t",
-        17..=32 => "int32_t",
+        0..=8 => std::env::var("WAV2C_I8_TYPE").unwrap_or_else(|_| "int8_t".to_string()),
+        9..=16 => std::env::var("WAV2C_I16_TYPE").unwrap_or_else(|_| "int16_t".to_string()),
+        17..=32 => std::env::var("WAV2C_I32_TYPE").unwrap_or_else(|_| "int32_t".to_string()),
         _ => {
             return Err(WavToCError::InvalidInput(
                 "Unsupported bits per sample.".to_string(),
@@ -256,9 +262,12 @@ fn wav_to_c_array(
         c_code.push_str("\n\n");
     }
 
+    // from env WAV2C_SIZE_TYPE or default to size_t
+    let size_type = std::env::var("WAV2C_SIZE_TYPE").unwrap_or_else(|_| "size_t".to_string());
     c_code.push_str(&format!(
-        "const size_t {}_SAMPLE_NO = {};\n\n\
+        "const {} {}_SAMPLE_NO = {};\n\n\
         const {} {}[{}] = {{",
+        size_type,
         safe_array_name.to_uppercase(),
         samples.len(),
         c_type,
@@ -272,7 +281,7 @@ fn wav_to_c_array(
         }
         match options.format {
             ArrayFormat::Base10 => c_code.push_str(&format!(" {},", sample)),
-            ArrayFormat::Base16 => match c_type {
+            ArrayFormat::Base16 => match c_type.as_str() {
                 // cast to signed type for correct hex representation - - i32 would be 0xffffff..
                 "int8_t" => c_code.push_str(&format!(" 0x{:02x},", sample as i8)),
                 "int16_t" => c_code.push_str(&format!(" 0x{:04x},", sample as i16)),
@@ -289,7 +298,7 @@ fn wav_to_c_array(
         info!("Output written to: {}", output_path.display());
         if options.header {
             let header_path = output_path.with_extension("h");
-            write_header(&header_path, array_name, c_type)?;
+            write_header(&header_path, array_name, &c_type, &size_type)?;
             info!("Header written to: {}", header_path.display());
         }
     } else {

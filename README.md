@@ -38,3 +38,13 @@ ffmpeg -i input.m4a -ar 22050 -ac 1 -sample_fmt s16 output.wav
 # Convert M4A to mono 8-bit 8.82 kHz WAV
 ffmpeg -i input.m4a -ar 8820 -ac 1 -acodec pcm_u8 output.wav
 ```
+
+## Other Notes
+
+* The environment variables `WAV2C_I8_TYPE`, `WAV2C_I16_TYPE`, `WAV2C_I32_TYPE` and `WAV2C_SIZE_TYPE` can be used to change integer types used in the generated C array. Default requires "stdint.h" and "stddef.h" to be included.
+
+# Develop
+
+There are integration tests that operate on generated WAV files in the `tests` directory. The tests also compile with `gcc` to ensure the generated C code is valid - this requires `gcc` to be installed.
+
+The 'golden sample' references can be updated with the './make_golden.sh' script. Of course this should only be done with intent otherwise it is the tail wagging the dog...
