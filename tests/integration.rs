@@ -1,62 +1,66 @@
 use assert_cmd::Command;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-fn wav_to_c_case(test_cases: &[(&str, &str)], args: &[&str], output_file: bool) {
-    let fixtures_dir = "tests/fixtures/";
-    let golden_dir = "tests/golden/";
+const FIXTURES_DIR: &str = "tests/fixtures/";
+const GOLDEN_DIR: &str = "tests/golden/";
 
-    for (input, golden_output) in test_cases {
-        let input_path = PathBuf::from(format!("{}/{}", fixtures_dir, input));
-        let golden_path = PathBuf::from(format!("{}/{}", golden_dir, golden_output));
-        let temp_dir = tempfile::TempDir::new().unwrap();
-        let output_path = temp_dir.path().join(golden_output);
+/// Run the wav2c binary with the given input and compare the output with the golden file
+fn wav_to_c_case(input_path: &Path, golden_path: &Path, output_path: Option<&Path>, args: &[&str]) {
+    let generated_output = if let Some(output_path) = output_path {
+        Command::cargo_bin(env!("CARGO_PKG_NAME"))
+            .unwrap()
+            .arg(&input_path)
+            .arg("--output")
+            .arg(&output_path)
+            .args(args)
+            .assert()
+            .success();
+        fs::read_to_string(&output_path).unwrap()
+    } else {
+        let cmd = Command::cargo_bin(env!("CARGO_PKG_NAME"))
+            .unwrap()
+            .arg(&input_path)
+            .args(args)
+            .assert()
+            .success();
+        String::from_utf8(cmd.get_output().stdout.clone()).unwrap()
+    };
 
-        let cmd = if output_file {
-            Command::cargo_bin(env!("CARGO_PKG_NAME"))
-                .unwrap()
-                .arg(&input_path)
-                .arg("--output")
-                .arg(&output_path)
-                .args(args)
-                .assert()
-                .success()
-        } else {
-            Command::cargo_bin(env!("CARGO_PKG_NAME"))
-                .unwrap()
-                .arg(&input_path)
-                .args(args)
-                .assert()
-                .success()
-        };
+    let golden_output = fs::read_to_string(&golden_path).unwrap();
 
-        let generated_output = if output_file {
-            fs::read_to_string(&output_path).unwrap()
-        } else {
-            String::from_utf8(cmd.get_output().stdout.clone()).unwrap()
-        };
-        let golden_output = fs::read_to_string(&golden_path).unwrap();
+    pretty_assertions::assert_eq!(
+        generated_output.trim(),
+        golden_output.trim(),
+        "Mismatch for {}",
+        golden_path.file_name().unwrap().to_string_lossy()
+    );
+
+    if args.contains(&"--header") {
+        let header_path = output_path.unwrap().with_extension("h");
+        let generated_header = fs::read_to_string(&header_path).unwrap();
+        let golden_header = fs::read_to_string(golden_path.with_extension("h")).unwrap();
 
         pretty_assertions::assert_eq!(
-            generated_output.trim(),
-            golden_output.trim(),
-            "Mismatch for {}",
-            input
+            generated_header.trim(),
+            golden_header.trim(),
+            "Mismatch for {} header",
+            header_path.file_name().unwrap().to_string_lossy()
         );
-
-        if args.contains(&"--header") {
-            let header_path = output_path.with_extension("h");
-            let generated_header = fs::read_to_string(&header_path).unwrap();
-            let golden_header = fs::read_to_string(golden_path.with_extension("h")).unwrap();
-
-            pretty_assertions::assert_eq!(
-                generated_header.trim(),
-                golden_header.trim(),
-                "Mismatch for {} header",
-                input
-            );
-        }
     }
+}
+
+/// Compile the generated C file with GCC - compile only, no linking (-c) since no entry function
+fn compile_with_gcc(file_path: &Path) {
+    Command::new("gcc")
+        .arg("-c")
+        .arg(file_path)
+        .arg("--include")
+        .arg("stdint.h")
+        .arg("--include")
+        .arg("stddef.h")
+        .assert()
+        .success();
 }
 
 #[test]
@@ -68,7 +72,12 @@ fn test_wav_to_c_array() {
         ("stereo_8bit_low.wav", "stereo_8bit_low.c"),
     ];
 
-    wav_to_c_case(&test_cases, &["--no-comment"], false);
+    for (input, golden) in test_cases {
+        let input_path = PathBuf::from(format!("{}/{}", FIXTURES_DIR, input));
+        let golden_path = PathBuf::from(format!("{}/{}", GOLDEN_DIR, golden));
+
+        wav_to_c_case(&input_path, &golden_path, None, &["--no-comment"]);
+    }
 }
 
 #[test]
@@ -80,7 +89,20 @@ fn test_wav_to_c_array_file() {
         ("stereo_8bit_low.wav", "stereo_8bit_low.c"),
     ];
 
-    wav_to_c_case(&test_cases, &["--no-comment"], true);
+    for (input, golden) in test_cases {
+        let input_path = PathBuf::from(format!("tests/fixtures/{}", input));
+        let golden_path = PathBuf::from(format!("tests/golden/{}", golden));
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let output_path = temp_dir.path().join(golden);
+
+        wav_to_c_case(
+            &input_path,
+            &golden_path,
+            Some(&output_path),
+            &["--no-comment"],
+        );
+        compile_with_gcc(&output_path);
+    }
 }
 
 #[test]
@@ -92,18 +114,60 @@ fn test_wav_to_c_array_file_header() {
         ("stereo_8bit_low.wav", "stereo_8bit_low.c"),
     ];
 
-    wav_to_c_case(&test_cases, &["--no-comment", "--header"], true);
+    for (input, golden) in test_cases {
+        let input_path = PathBuf::from(format!("tests/fixtures/{}", input));
+        let golden_path = PathBuf::from(format!("tests/golden/{}", golden));
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let output_path = temp_dir.path().join(golden);
+
+        wav_to_c_case(
+            &input_path,
+            &golden_path,
+            Some(&output_path),
+            &["--no-comment", "--header"],
+        );
+        compile_with_gcc(&output_path);
+    }
+}
+
+#[test]
+fn test_wav_to_c_array_file_base16() {
+    let test_cases = vec![("mono_8bit.wav", "mono_8bit_base16.c")];
+
+    for (input, golden) in test_cases {
+        let input_path = PathBuf::from(format!("tests/fixtures/{}", input));
+        let golden_path = PathBuf::from(format!("tests/golden/{}", golden));
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let output_path = temp_dir.path().join(golden);
+
+        wav_to_c_case(
+            &input_path,
+            &golden_path,
+            Some(&output_path),
+            &["--no-comment", "--format", "base16"],
+        );
+        compile_with_gcc(&output_path);
+    }
 }
 
 #[test]
 fn test_wav_to_c_array_prefix() {
     let test_cases = vec![("mono_8bit.wav", "mono_8bit_prefix.c")];
 
-    wav_to_c_case(
-        &test_cases,
-        &["--no-comment", "--prefix", "/* john was here */"],
-        true,
-    );
+    for (input, golden) in test_cases {
+        let input_path = PathBuf::from(format!("tests/fixtures/{}", input));
+        let golden_path = PathBuf::from(format!("tests/golden/{}", golden));
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let output_path = temp_dir.path().join(golden);
+
+        wav_to_c_case(
+            &input_path,
+            &golden_path,
+            Some(&output_path),
+            &["--no-comment", "--prefix", "/* john was here */"],
+        );
+        compile_with_gcc(&output_path);
+    }
 }
 
 #[test]
