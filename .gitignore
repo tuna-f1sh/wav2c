@@ -1,6 +1,3 @@
-*.m4a
-*.mp3
-*.wav
 *.c
 *.h
 /target
