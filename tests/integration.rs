@@ -1,12 +1,29 @@
 use assert_cmd::Command;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Once;
 
 const FIXTURES_DIR: &str = "tests/fixtures/";
 const GOLDEN_DIR: &str = "tests/golden/";
 
+static INIT: Once = Once::new();
+
+/// Allows fixtures to be excluded from package if desired
+/// and generated on demand
+fn init() {
+    INIT.call_once(|| {
+        generate_wavs();
+    });
+}
+
+fn generate_wavs() {
+    Command::new("make").assert().success();
+}
+
 /// Run the wav2c binary with the given input and compare the output with the golden file
 fn wav_to_c_case(input_path: &Path, golden_path: &Path, output_path: Option<&Path>, args: &[&str]) {
+    init();
+
     let generated_output = if let Some(output_path) = output_path {
         Command::cargo_bin(env!("CARGO_PKG_NAME"))
             .unwrap()

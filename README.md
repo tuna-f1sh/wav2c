@@ -45,6 +45,8 @@ ffmpeg -i input.m4a -ar 8820 -ac 1 -acodec pcm_u8 output.wav
 
 # Develop
 
-There are integration tests that operate on generated WAV files in the `tests` directory. The tests also compile with `gcc` to ensure the generated C code is valid - this requires `gcc` to be installed.
+There are integration tests that operate on generated WAV files in the `tests` directory. A `cargo run --bin gen_wav` target is used to generate WAV files for testing. See the 'Makefile' targets. The files are made on demand if not existing. `make clean && make` will regenerate all required test files.
 
-The 'golden sample' references can be updated with the './make_golden.sh' script. Of course this should only be done with intent otherwise it is the tail wagging the dog...
+Tests also compile the output with `gcc` to ensure the generated C code is valid - this requires `gcc` to be installed.
+
+The 'golden sample' references can be updated with the `make golden` target. Of course this should only be done with intent otherwise it is the tail wagging the dog...
