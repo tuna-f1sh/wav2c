@@ -52,6 +52,7 @@ fn wav_to_c_case(input_path: &Path, golden_path: &Path, output_path: Option<&Pat
 
 /// Compile the generated C file with GCC - compile only, no linking (-c) since no entry function
 fn compile_with_gcc(file_path: &Path) {
+    let temp_file = file_path.with_extension("o");
     Command::new("gcc")
         .arg("-c")
         .arg(file_path)
@@ -59,6 +60,8 @@ fn compile_with_gcc(file_path: &Path) {
         .arg("stdint.h")
         .arg("--include")
         .arg("stddef.h")
+        .arg("-o")
+        .arg(&temp_file)
         .assert()
         .success();
 }
